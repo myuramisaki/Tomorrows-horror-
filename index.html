@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tomorrow Horror</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;700&family=Special+Elite&display=swap');
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+        body, html { width: 100%; height: 100%; overflow: hidden; background: #1a0000; font-family: 'Oswald', sans-serif; }
+        
+        /* Layout */
+        .game-container {
+            width: 100%; height: 100%; position: relative; display: grid;
+            grid-template-rows: auto 1fr auto; grid-template-columns: 220px 1fr 200px;
+            grid-template-areas:
+                "header header header"
+                "inventory main status"
+                "actions actions actions";
+            gap: 10px; padding: 15px;
+            background: 
+                radial-gradient(circle at 75% 40%, rgba(160, 20, 20, 0.25), transparent 50%),
+                linear-gradient(135deg, #4a0808 0%, #220303 50%, #0f0000 100%);
+        }
+        
+        /* Header */
+        .top-bar {
+            grid-area: header; display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 1px solid rgba(180, 40, 40, 0.3); padding-bottom: 10px;
+        }
+        .game-title { font-size: 1.8rem; color: #ff5555; letter-spacing: 4px; text-transform: uppercase; }
+        .day-counter { font-size: 1.4rem; color: #ff9999; }
+        .mood-meter { display: flex; gap: 4px; }
+        .mood-dot { width: 14px; height: 14px; border-radius: 50%; border: 1px solid #442222; background: #111; transition: all 0.5s; }
+        .mood-dot.active { box-shadow: 0 0 8px currentColor; }
+        .mood-dot.state1 { color: #ffcc44; background: #ffcc44; }
+        .mood-dot.state2 { color: #ff8844; background: #ff8844; }
+        .mood-dot.state3 { color: #ff4444; background: #ff4444; }
+        
+        /* Inventory Panel */
+        .inventory-panel {
+            grid-area: inventory; background: rgba(30, 5, 5, 0.7); border: 1px solid rgba(150, 30, 30, 0.3);
+            padding: 15px; overflow-y: auto;
+        }
+        .panel-heading { color: #ff7777; font-size: 1rem; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 12px; border-bottom: 1px solid #442222; padding-bottom: 5px; }
+        .item-slot {
+            padding: 10px 12px; margin-bottom: 8px; background: rgba(50, 10, 10, 0.4); border: 1px solid transparent;
+            color: #e0c8c8; cursor: pointer; transition: all 0.25s; font-size: 0.95rem;
+        }
+        .item-slot:hover { border-color: #ff4444; background: rgba(90, 15, 15, 0.5); padding-left: 18px; }
+        .item-slot.selected { border-color: #ff4444; background: rgba(120, 20, 20, 0.6); box-shadow: inset 0 0 10px rgba(255, 40, 40, 0.2); }
+        .item-slot.empty { color: #554444; cursor: default; border: none; background: transparent; }
+        
+        /* Main Scene */
+        .scene-panel {
+            grid-area: main; background: rgba(15, 2, 2, 0.85); border: 1px solid rgba(120, 25, 25, 0.35);
+            padding: 25px; overflow-y: auto; position: relative;
+        }
+        .room-name { font-size: 1.6rem; color: #ff6666; margin-bottom: 20px; letter-spacing: 3px; border-bottom: 1px solid #331111; padding-bottom: 8px; }
+        .scene-text { font-family: 'Special Elite', serif; font-size: 1.05rem; line-height: 2; color: #d8c8c8; margin-bottom: 25px; }
+        .scene-text p { margin-bottom: 15px; }
+        .interactable {
+            color: #ff9999; border-bottom: 1px dashed #663333; cursor: pointer; transition: all 0.2s;
+        }
+        .interactable:hover { color: #ff4444; border-bottom-color: #ff4444; }
+        .discovered { color: #99cc77; border-bottom: 1px dashed #446633; }
+        .discovered:hover { color: #bbee99; }
+        .warning-text { color: #ff4444; font-style: italic; margin: 15px 0; animation: flicker 3s infinite; }
+        @keyframes flicker {
+            0%, 92%, 100% { opacity: 1; }
+            94%, 98% { opacity: 0.3; }
+        }
+        .message-popup {
+            background: rgba(40, 5, 5, 0.95); border: 1px solid #aa2222; padding: 18px 22px; margin: 20px 0;
+            color: #f0d0d0; box-shadow: 0 0 25px rgba(255, 30, 30, 0.15); display: none;
+        }
+        .message-popup.show { display: block; animation: fadeIn 0.4s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        /* Status Panel */
+        .status-panel {
+            grid-area: status; background: rgba(30, 5, 5, 0.7); border: 1px solid rgba(150, 30, 30, 0.3);
+            padding: 15px; display: flex; flex-direction: column; gap: 15px;
+        }
+        .stat-label { color: #aa6666; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; }
+        .stat-value { color: #ffcccc; font-size: 1.1rem; margin-top: 3px; }
+        .progress-bar { height: 10px; background: #221111; margin-top: 5px; overflow: hidden; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, #cc3333, #ff5555); transition: width 0.5s; }
+        .clue-log { margin-top: 10px; max-height: 150px; overflow-y: auto; }
+        .clue-entry { font-size: 0.85rem; color: #bbaaaa; margin-bottom: 6px; padding-left: 10px; border-left: 2px solid #442222; }
+        
+        /* Action Bar */
+        .action-bar {
+            grid-area: actions; display: flex; gap: 10px; flex-wrap: wrap; padding-top: 10px; border-top: 1px solid rgba(80, 20, 20, 0.3);
+        }
+        .action-btn {
+            padding: 12px 22px; background: rgba(60, 10, 10, 0.5); border: 1px solid #552222; color: #ffcccc;
+            cursor: pointer; transition: all 0.25s; font-family: 'Oswald', sans-serif; font-size: 1rem; letter-spacing: 1px;
+        }
+        .action-btn:hover { background: rgba(100, 20, 20, 0.6); border-color: #ff4444; transform: translateY(-2px); }
+        .action-btn:disabled { opacity: 0.3; cursor: not-allowed; transform: none; }
+        
+        /* Ending Overlay */
+        .end-overlay {
+            position: fixed; inset: 0; background: rgba(5, 0, 0, 0.97); display: flex; flex-direction: column;
+            align-items: center; justify-content: center; z-index: 100; padding: 40px; text-align: center;
+        }
+        .end-hidden { display: none; }
+        .end-title { font-size: 2.4rem; text-transform: uppercase; letter-spacing: 6px; margin-bottom: 30px; color: #ff4444; }
+        .end-desc { color: #d0b0b0; font-size: 1.1rem; max-width: 650px; line-height: 2; margin-bottom: 40px; }
+        .end-btn {
+            background: transparent; border: 1px solid #aa2222; color: #ff6666; padding: 14px 35px;
+            font-size: 1.1rem; text-transform: uppercase; cursor: pointer; margin: 8px;
+            transition: all 0.3s; font-family: 'Oswald', sans-serif; letter-spacing: 3px;
+        }
+        .end-btn:hover { background: #aa2222; color: #000; box-shadow: 0 0 20px rgba(255, 40, 40, 0.4); }
+        
+        /* Navigation */
+        .nav-buttons { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
+        .nav-btn { padding: 10px 18px; background: rgba(50, 10, 10, 0.5); border: 1px solid #552222; color: #ffcccc; cursor: pointer; transition: all 0.25s; }
+        .nav-btn:hover { border-color: #ff4444; background: rgba(90, 15, 15, 0.5); }
+        .nav-btn.locked { opacity: 0.3; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+
+<div class="game-container" id="gameScreen">
+    <!-- Top Bar -->
+    <div class="top-bar">
+        <h1 class="game-title">Tomorrow Horror</h1>
+        <div class="day-counter">DAY <span id="dayNum">1</span> of ???</div>
+        <div class="mood-meter">
+            <span style="color:#886666; margin-right:8px;">SANITY</span>
+            <div class="mood-dot state1" id="san1"></div>
+            <div class="mood-dot state1" id="san2"></div>
+            <div class="mood-dot state2" id="san3"></div>
+            <div class="mood-dot state2" id="san4"></div>
+            <div class="mood-dot state3" id="san5"></div>
+        </div>
+    </div>
+
+    <!-- Inventory -->
+    <div class="inventory-panel">
+        <h3 class="panel-heading">ITEMS</h3>
+        <div id="inventoryList">
+            <div class="item-slot empty">Empty</div>
+        </div>
+        <h3 class="panel-heading" style="margin-top:20px;">SELECTED</h3>
+        <div id="selectedItem" style="color:#886666; font-size:0.9rem;">Nothing selected</div>
+    </div>
+
+    <!-- Main Scene -->
+    <div class="scene-panel" id="scenePanel">
+        <h2 class="room-name" id="roomName">The Waiting Room</h2>
+        <div class="scene-text" id="sceneText"></div>
+        <div class="message-popup" id="msgPopup"></div>
+        <div class="nav-buttons" id="navArea"></div>
+    </div>
+
+    <!-- Status / Clues -->
+    <div class="status-panel">
+        <div>
+            <div class="stat-label">TIME LOOP PROGRESS</div>
+            <div class="progress-bar"><div class="progress-fill" id="loopBar" style="width:10%"></div></div>
+            <div class="stat-value" id="loopStatus">Searching for the pattern</div>
+        </div>
+        <div>
+            <div class="stat-label">CLUES COLLECTED</div>
+            <div class="clue-log" id="clueLog"></div>
+        </div>
+        <div>
+            <div class="stat-label">CURRENT OBJECTIVE</div>
+            <div class="stat-value" id="objective">Explore and find a way out</div>
+        </div>
+    </div>
+
+    <!-- Action Bar -->
+    <div class="action-bar">
+        <button class="action-btn" onclick="examine()">EXAMINE AREA</button>
+        <button class="action-btn" onclick="useSelected()">USE ITEM</button>
+        <button class="action-btn" onclick="rest()">REST</button>
+        <button class="action-btn" onclick="showHelp()">HELP</button>
+    </div>
+</div>
+
+<!-- Ending Screens -->
+<div class="end-overlay end-hidden" id="endScreenA">
+    <h1 class="end-title">THE WARDEN</h1>
+    <p class="end-desc">You choose to stay. You seal the doors from within. The loop closes. The outside world is safe. But you remain here, day after day, the same hours repeating. You have become the guardian and the prisoner both. It does not hunger anymore. It waits. And it whispers your name through the silence.</p>
+    <div><button class="end-btn" onclick="restartGame()">BEGIN AGAIN</button><button class="end-btn" onclick="location.reload()">MAIN MENU</button></div>
+</div>
+<div class="end-overlay end-hidden" id="endScreenB">
+    <h1 class="end-title" style="color:#99cc55;">THE BREAKER</h1>
+    <p class="end-desc">You shatter the mechanism. The timeline unravels. You wake up in your bed, sunlight through the window, the date correct. But the marks on your skin remain. And sometimes when you look in the mirror your eyes are not quite your own. You are free. But something crossed over when the wall fell. And it is learning your habits.</p>
+    <div><button class="end-btn" onclick="restartGame()">BEGIN AGAIN</button><button class="end-btn" onclick="location.reload()">MAIN MENU</button></div>
+</div>
+<div class="end-overlay end-hidden" id="endScreenC">
+    <h1 class="end-title" style="color:#ffcc44;">THE SUCCESSOR</h1>
+    <p class="end-desc">You accept the burden. The hunger transfers. The doors open. You step out into the world, changed. Every night you feel the pull. Every dawn you know another is trapped somewhere else. You can walk away. But you know you will return. Someone has to tend the threshold. And now it is your turn.</p>
+    <div><button class="end-btn" onclick="restartGame()">BEGIN AGAIN</button><button class="end-btn" onclick="location.reload()">MAIN MENU</button></div>
+</div>
+
+<script>
+// Game State
+const game = {
+    day: 1,
+    sanity: 5,
+    currentRoom: 'start',
+    inventory: [],
+    selectedItem: null,
+    clues: [],
+    flags: {},
+    actionsTaken: 0,
+    maxDays: 7
+};
+
+// Audio
+let audioCtx = null;
+function initAudio() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx?.state === 'suspended') audioCtx.resume();
+}
+function playSound(type) {
+    if (!audioCtx) return;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    switch(type) {
+        case 'click':
+            osc.frequency.setValueAtTime(200, audioCtx.currentTime);
+            osc.type = 'triangle';
+            gain.gain.setValueAtTime(0.03, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.06);
+            osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 0.06);
+            break;
+        case 'find':
+            osc.frequency.setValueAtTime(180, audioCtx.currentTime);
+            osc.frequency.setValueAtTime(260, audioCtx.currentTime + 0.1);
+            osc.type = 'sine';
+            gain.gain.setValueAtTime(0.04, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.35);
+            osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 0.35);
+            break;
+        case 'unlock':
+            osc.frequency.setValueAtTime(140, audioCtx.currentTime);
+            osc.frequency.setValueAtTime(200, audioCtx.currentTime + 0.15);
+            osc.frequency.setValueAtTime(280, audioCtx.currentTime + 0.3);
+            osc.type = 'sine';
+            gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
+            osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 0.5);
+            break;
+        case 'danger':
+            osc.frequency.setValueAtTime(80, audioCtx.currentTime);
+            osc.type = 'sawtooth';
+            gain.gain.setValueAtTime(0.04, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+            osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 0.3);
+            break;
+    }
+}
+
+// Items
+const ITEMS = {
+    diary: { name: 'TORN DIARY PAGE', desc: 'Someone was here before. Dates crossed out. "It knows what I fear."', examine: 'The handwriting shakes near the end. "Do not trust the reflection. It is watching."' },
+    key_brass: { name: 'BRASS KEY', desc: 'Warm to the touch. Marked with a looping symbol.', examine: 'Fits a lock shaped like an endless circle.' },
+    fragment: { name: 'CRYSTAL FRAGMENT', desc: 'Glows faintly. Seems to pulse when you think of home.', examine: 'Three more like it must exist. They fit together.' },
+    photo: { name: 'FADED PHOTOGRAPH', desc: 'You in a place you do not remember. Smiling.', examine: 'The back says: October 14. The day before it began.' },
+    tape: { name: 'OLD CASSETTE TAPE', desc: 'Labeled "DO NOT LISTEN" in shaky handwriting.', examine: 'You can hear faint voices even without playing it.' },
+    mirror_shard: { name: 'MIRROR SHARD', desc: 'Your reflection looks slightly different. Older. Tired.', examine: 'It whispers: You are running out of time.' }
+};
+
+// Rooms
+const ROOMS = {
+    start: {
+        name: 'THE BEDCHAMBER',
+        desc: `<p>You wake on a narrow bed. The sheets smell of dust and something older. There are no windows. The door is locked from the outside. On the nightstand sits a <span class="interactable" data-action="examine" data-target="diary">diary page</span>.</p>
+        <p>Across the room stands a <span class="interactable" data-action="examine" data-target="wardrobe">wardrobe</span> with its door slightly ajar. A <span class="interactable" data-action="examine" data-target="clock">wall clock</span> is stuck at 11:59. Beside it hangs a <span class="interactable" data-action="examine" data-target="mirror">fractured mirror</span>.</p>`,
+        examines: {
+            diary: { text: 'You pick it up. The entries stop abruptly. "Every morning the date moves forward but I never leave. Day 7 was the worst. Day 7 it stopped pretending to be human."', giveItem: 'diary', clue: 'Day 7 marks a turning point' },
+            wardrobe: { text: 'Empty except for a coat that is too large. In the pocket you find a <span class="interactable" data-action="take" data-target="photo">photograph</span>. The wood inside has been scored repeatedly with one word: NOT REAL.' },
+            clock: { text: 'The hands do not move. But every time you blink they have shifted. Not forward. Backward.', sanityChange: -1 },
+            mirror: { text: 'You stare. Your reflection blinks a split second before you do. When you step away it does not. It smiles. You stumble back.', giveItem: 'mirror_shard', sanityChange: -2, flag: { sawMirror: true } }
+        },
+        nav: [{ label: 'EXIT TO HALLWAY', to: 'hallway', requires: null }],
+        objective: 'Find what happened here and how to leave'
+    },
+    hallway: {
+        name: 'THE ENDLESS HALLWAY',
+        desc: `<p>The floorboards groan with every step. The walls stretch far into shadow. Doors branch off: the <span class="interactable" data-action="goto" data-target="study">study</span>, the <span class="interactable" data-action="goto" data-target="storage">storage room</span>, and the <span class="interactable" data-action="goto" data-target="library">library</span>.</p>
+        <p>A door at the far end leads to something deeper. It is <span class="interactable" data-action="examine" data-target="sealed">sealed</span>.</p>`,
+        examines: {
+            sealed: { text: 'Marked with three empty slots. They glow faintly when you touch them. You need three fragments to open this path.', clue: 'The final door requires 3 crystal fragments' }
+        },
+        nav: [
+            { label: 'BACK TO BEDCHAMBER', to: 'start' },
+            { label: 'ENTER STUDY', to: 'study' },
+            { label: 'ENTER STORAGE', to: 'storage' },
+            { label: 'ENTER LIBRARY', to: 'library' },
+            { label: 'DEEPER PASSAGE', to: 'final', requires: 'sealed' }
+        ],
+        objective: 'Explore the three rooms and gather fragments'
+    },
+    study: {
+        name: 'THE STUDY',
+        desc: `<p>Books line the walls. Most pages are blank. A desk holds scattered papers and an old <span class="interactable" data-action="examine" data-target="recorder">recorder</span>. In the corner a <span class="interactable" data-action="examine" data-target="safe">metal safe</span> sits half-buried in shadow.</p>`,
+        examines: {
+            recorder: { text: 'You press play. Static swells then clears. Voice: "It does not kill you. It just removes your tomorrows until nothing remains. The pattern is not a trap. It is a door. 15-04-25-17."', giveItem: 'tape', clue: 'Sequence: 15 04 25 17' },
+            safe: { text: game.flags.safeOpened ? 'Empty now. The mechanism hums softly.' : 'Needs a 4-digit code stamped into the metal: D M Y Y.', codeInput: true, correctCode: '1504', reward: 'fragment', clue: '15 04 from recording opens the safe' }
+        },
+        nav: [{ label: 'RETURN TO HALLWAY', to: 'hallway' }],
+        objective: 'Listen to the recorder and open the safe'
+    },
+    storage: {
+        name: 'THE STORAGE ROOM',
+        desc: `<p>Dust clings to everything. Old furniture stacked against the walls. A <span class="interactable" data-action="examine" data-target="chest">locked chest</span> sits beneath a grimy window that shows only darkness. A <span class="interactable" data-action="examine" data-target="scrawl">scrawl</span> covers the opposite wall.</p>`,
+        examines: {
+            chest: { text: game.flags.chestOpened ? 'The lid hangs open. Only silence remains.' : 'Needs a key. The lock is shaped like a loop.', requiresItem: 'key_brass', giveItem: 'fragment', clue: 'The brass key opens the chest' },
+            scrawl: { text: '"It feeds on what you hope for most. Give it nothing and it starves." Below it someone carved: "The key is where they kee
